@@ -4,10 +4,13 @@
 package translator // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver/internal/translator"
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"google.golang.org/protobuf/proto"
 )
@@ -55,6 +58,9 @@ func (st *StatsTranslator) TranslateStats(clientStats *pb.ClientStatsPayload, la
 	sum.SetIsMonotonic(false)
 	sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	dp := sum.DataPoints().AppendEmpty()
+	now := pcommon.NewTimestampFromTime(time.Now())
+	dp.SetStartTimestamp(now)
+	dp.SetTimestamp(now)
 	byteSlice := dp.Attributes().PutEmptyBytes(keyStatsPayload)
 	byteSlice.Append(bytes...)
 	return mmx, nil

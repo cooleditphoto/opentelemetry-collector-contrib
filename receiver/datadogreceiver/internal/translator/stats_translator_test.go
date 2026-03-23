@@ -11,6 +11,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -107,9 +108,18 @@ func TestTranslateStats(t *testing.T) {
 				sm := rm.ScopeMetrics().At(j)
 				for k := 0; k < sm.Metrics().Len(); k++ {
 					md := sm.Metrics().At(k)
+					sum := md.Sum()
+					// Verify the aggregation temporality and monotonicity are set correctly.
+					assert.Equal(t, pmetric.AggregationTemporalityCumulative, sum.AggregationTemporality())
+					assert.False(t, sum.IsMonotonic())
 					// these metrics are an APM Stats payload; consume it as such
-					for l := 0; l < md.Sum().DataPoints().Len(); l++ {
-						if payload, ok := md.Sum().DataPoints().At(l).Attributes().Get(keyStatsPayload); ok {
+					for l := 0; l < sum.DataPoints().Len(); l++ {
+						dp := sum.DataPoints().At(l)
+						// Both timestamps must be set (non-zero) so downstream consumers
+						// (e.g. Mimir) don't reject the metric.
+						assert.NotZero(t, dp.StartTimestamp())
+						assert.NotZero(t, dp.Timestamp())
+						if payload, ok := dp.Attributes().Get(keyStatsPayload); ok {
 							stats := &pb.StatsPayload{}
 							err = proto.Unmarshal(payload.Bytes().AsRaw(), stats)
 							assert.NoError(t, err)
